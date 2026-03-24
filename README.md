@@ -42,3 +42,60 @@ artifacts:
       - appspec.yaml
       - taskdef.json
 ```
+
+
+### Token, Region, Family and Account_ID
+```bash
+TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region) 
+FAMILY=$(aws ecs list-task-definition-families --status ACTIVE --output text | awk '{print $NF}') 
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text) 
+printf "You are using $AWS_REGION region\nYour task definition family is $FAMILY\nYour account ID is $ACCOUNT_ID\n"
+```
+
+```json
+{
+    "containerDefinitions": [
+        {
+            "name": "application",
+            "image": "<IMAGE_NAME>",
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "cicd-logs",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            }
+        }
+    ],
+    "family": "LabStack-cebead2c-16d0-4e62-b71e-9aa4dd3d2714-9m8zrsA37Mf37qrAvndYWs-0-TaskDefinition-tOSnjtDhVUw8",
+    "taskRoleArn": "arn:aws:iam::811714540609:role/ecsTaskExecutionRole",
+    "executionRoleArn": "arn:aws:iam::811714540609:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "status": "ACTIVE",
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "tags": [
+        {
+            "key": "Name",
+            "value": "GreenTaskDefinition"
+        }
+    ]
+}
+```
