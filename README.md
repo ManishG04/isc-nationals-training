@@ -53,6 +53,8 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 printf "You are using $AWS_REGION region\nYour task definition family is $FAMILY\nYour account ID is $ACCOUNT_ID\n"
 ```
 
+`taskdef.json`
+
 ```json
 {
     "containerDefinitions": [
