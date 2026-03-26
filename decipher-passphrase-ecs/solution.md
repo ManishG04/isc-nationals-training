@@ -36,3 +36,23 @@ It is also a very fast way but for transferring files from one region to another
 
 ### 4. AWS DataSync
 Used for data migration from on prem to AWS servers needs some provisioning so the provisioning time in the competition could be the bottleneck, else it's the fastest. 
+
+
+## Checking if extracted files matched number of files available in the .tar
+
+```bash
+# Count files in archive (before extraction)
+ARCHIVE_COUNT=$(tar -tf frps.tar | wc -l)
+echo "Files in archive: $ARCHIVE_COUNT"
+
+# Count extracted files (streaming approach)
+EXTRACTED_COUNT=$(find extracted -type f -print0 | tr -cd '\0' | wc -c)
+echo "Files extracted: $EXTRACTED_COUNT"
+
+# Compare
+if [ "$ARCHIVE_COUNT" -eq "$EXTRACTED_COUNT" ]; then
+    echo "✅ SUCCESS: All files extracted correctly"
+else
+    echo "❌ ERROR: File count mismatch!"
+fi
+```
