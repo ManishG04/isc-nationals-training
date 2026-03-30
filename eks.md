@@ -181,3 +181,46 @@ The Setup: You fixed the OIDC provider (Scenario 3 from earlier), but the Pod st
 The Trap: You stare at the AWS IAM Role for 30 minutes, confirming it has S3FullAccess.
 
 The Reality: In Kubernetes, there is AWS IAM (which talks to AWS services), and there is RBAC (Role-Based Access Control, which dictates who can do what inside the cluster). You might have fixed the AWS side, but the Kubernetes ServiceAccount wasn't linked to it.
+
+
+## 🌐 1. The Ingress Trap (The "Website Won't Expose" Problem)
+In a competition, you will often be asked to expose a web app to the internet.
+ * The Symptom: You deploy your app and a Kubernetes Service of type LoadBalancer. You run kubectl get svc, but the EXTERNAL-IP column just says <pending> forever. No AWS Application Load Balancer (ALB) is ever created.
+ * The Cause: EKS does not magically know how to create AWS Load Balancers out of the box. It requires a bridge called the AWS Load Balancer Controller, and it requires your VPC subnets to be tagged correctly.
+ * The "Fixer" Checklist:
+   * Check the Subnet Tags (Massive Trap): Go to the AWS VPC Console. Look at your Public Subnets. They must have this exact tag, or the ALB will not build:
+     * Key: kubernetes.io/role/elb | Value: 1
+     * (For private subnets, the key is kubernetes.io/role/internal-elb | Value: 1)
+   * Check the Controller: Run kubectl get pods -n kube-system. Look for a pod named aws-load-balancer-controller. If it’s missing or crashing, that's your root cause.
+## 💾 2. The Storage Trap (The "Database Won't Boot" Problem)
+If they ask you to deploy a stateful application (like a MySQL database or WordPress), the pod needs a physical hard drive (Amazon EBS volume) attached to it.
+ * The Symptom: The Pod is stuck in ContainerCreating for 10 minutes.
+ * The Autopsy: You run kubectl describe pod <name> and look at the Events at the bottom. It says: "FailedMount... timeout expired waiting for volumes to attach or mount".
+ * The Cause: Just like the Load Balancer, EKS needs a driver to talk to AWS EBS. It's called the EBS CSI Driver.
+ * The "Fixer" Checklist:
+   * The Add-on: Go to the AWS EKS Console -> Click your Cluster -> Add-ons tab. If "Amazon EBS CSI Driver" is not there, click "Get more add-ons" and install it.
+   * The IAM Role: The EC2 Node Group's IAM role must have the AWS managed policy AmazonEBSCSIDriverPolicy attached to it. If it doesn't, the driver is blocked from creating the hard drive.
+## 🔐 3. IRSA Deep Dive (IAM Roles for Service Accounts)
+We touched on this yesterday, but here is the advanced diagnostic.
+ * The Symptom: Your Python app is running perfectly (Status: Running), but the logs (kubectl logs <pod>) say AccessDenied: S3 bucket access forbidden.
+ * The Cause: The Pod needs AWS credentials. The modern way to do this is linking an AWS IAM Role to a Kubernetes ServiceAccount (IRSA).
+ * The "Fixer" Checklist:
+   * Find out what ServiceAccount the pod is using: kubectl get pod <name> -o yaml | grep serviceAccountName
+   * Inspect that ServiceAccount: kubectl describe serviceaccount <account-name>
+   * Look for the "Annotations" section. You must see a line that looks like this:
+     Annotations: eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-s3-role
+   * If that annotation is missing, the bridge is broken. (Also, check the AWS IAM role to ensure its Trust Relationship allows sts:AssumeRoleWithWebIdentity).
+## 🛠️ 4. Advanced "Panic" Commands (Add to your Cheat Sheet)
+If the cluster is acting completely insane and your basic commands aren't finding the root cause, use these Level 300 commands:
+ * The Chronological God-View: kubectl get events --sort-by='.metadata.creationTimestamp' -A
+   (Instead of checking one pod at a time, this prints a live timeline of every single warning, failure, and crash happening across the entire cluster right now).
+ * The Resource Radar:
+   kubectl top pods -A and kubectl top nodes
+   (If pods are showing the status Evicted or OOMKilled [Out Of Memory], run this to see which container is hoarding all the CPU/RAM).
+ * The Clean Reboot:
+   kubectl rollout restart deployment <deployment-name> -n <namespace>
+   (Yesterday I gave you kubectl delete pod to force a restart. If an app has 10 pods, deleting them one by one is slow. This rollout restart command gracefully reboots the entire application one pod at a time with zero downtime).
+## 🛑 Final Advice
+Write the Subnet Tags (kubernetes.io/role/elb = 1) and the kubectl get events --sort-by... command on your physical paper right now.
+Do not try to spin up a cluster to test this right now. You do not have the time, and you will just exhaust your brain before the starting gun fires.
+You have the deep knowledge stored safely on your paper. Take a breath, trust your preparation, and go crush Day 1. You are ready.
